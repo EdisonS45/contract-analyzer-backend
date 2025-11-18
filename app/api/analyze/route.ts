@@ -4,22 +4,21 @@ import { Schema, SchemaType } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-
 export const schema: Schema = {
   type: SchemaType.ARRAY,
   items: {
     type: SchemaType.OBJECT,
     properties: {
       clause_label: { type: SchemaType.STRING },
-      risk_level: { 
+      risk_level: {
         type: SchemaType.STRING,
-          format: "enum",
-        enum: ["RED", "YELLOW"]
+        format: "enum",
+        enum: ["RED", "YELLOW"],
       },
       start_snippet: { type: SchemaType.STRING },
       end_snippet: { type: SchemaType.STRING },
       risk_reason: { type: SchemaType.STRING },
-      suggested_fix: { type: SchemaType.STRING }
+      suggested_fix: { type: SchemaType.STRING },
     },
     required: [
       "clause_label",
@@ -27,11 +26,10 @@ export const schema: Schema = {
       "start_snippet",
       "end_snippet",
       "risk_reason",
-      "suggested_fix"
-    ]
-  }
+      "suggested_fix",
+    ],
+  },
 };
-
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +40,42 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { mode, text } = body as { mode: string; text: string };
+    if (mode === "rewrite") {
+      const { clause_text, role } = await req.json();
+
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+      });
+
+      const prompt = `
+You are Senior Commercial Counsel representing the **${
+        role || "Service Provider"
+      }**.
+Your job is to propose a "negotiated compromise" rewrite that:
+- Preserves most of the original clause wording
+- Removes unfair or one-sided terms against the ${role}
+- Looks reasonable enough for the counterparty to accept
+- Makes only the minimum necessary wording changes
+
+INPUT CLAUSE:
+"${clause_text}"
+
+Return JSON only:
+{
+  "suggested_clause": "full revised clause as a single block of text",
+  "explanation": "the negotiation reasoning behind your change"
+}
+`;
+
+      const result = await model.generateContent(prompt);
+      const cleaned = result.response
+        .text()
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+
+      return NextResponse.json(JSON.parse(cleaned));
+    }
 
     if (mode !== "red_flags") {
       return NextResponse.json({ error: "Unsupported mode" }, { status: 400 });
