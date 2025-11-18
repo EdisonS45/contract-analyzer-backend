@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
+    "@google/generative-ai": "^0.24.1",
     "genai": "^0.0.18",
     "next": "16.0.3",
     "openai": "^6.9.1",
