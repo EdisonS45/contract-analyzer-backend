@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/genai": "^1.30.0",
+    "genai": "^0.0.18",
     "next": "16.0.3",
     "openai": "^6.9.1",
     "react": "19.2.0",
