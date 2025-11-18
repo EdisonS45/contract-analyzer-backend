@@ -19,6 +19,7 @@ export const schema: Schema = {
       end_snippet: { type: SchemaType.STRING },
       risk_reason: { type: SchemaType.STRING },
       suggested_fix: { type: SchemaType.STRING },
+      clause_text: { type: SchemaType.STRING }
     },
     required: [
       "clause_label",
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { mode, text } = body as { mode: string; text: string };
     if (mode === "rewrite") {
-      const { clause_text, role } = await req.json();
+      const { clause_text, role } = body; // ← use existing parsed body here
 
       const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
@@ -110,6 +111,7 @@ Return ONLY JSON in this format:
     "risk_level": "RED" | "YELLOW",
     "start_snippet": "first 8–12 words of the risky clause as they appear",
     "end_snippet": "last 8–12 words of the same clause as they appear",
+    "clause_text": "full exact text of the clause, verbatim as it appears in the document",
     "risk_reason": "professional explanation of why this harms the Consultant",
     "suggested_fix": "professional, realistic negotiation language that protects the Consultant"
   }
