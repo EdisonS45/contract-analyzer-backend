@@ -11,6 +11,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { mode, text } = await req.json();
+
+    console.log("Incoming mode:", mode);
+    console.log("Text length:", text ? text.length : 0);
+
     if (mode !== "red_flags") {
       return NextResponse.json({ error: "Unsupported mode" }, { status: 400 });
     }
@@ -49,16 +53,19 @@ ${text}
 `;
 
     const result = await model.generateContent(prompt);
-    const output = result.response.text(); // Gemini returns Markdown text
+    const output = result.response.text();
 
-    // Sometimes Gemini wraps JSON in code blocks → remove them safely
+    console.log("Raw Gemini output:", output.slice(0, 500));
+
     const cleaned = output
       .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
 
-    return NextResponse.json(JSON.parse(cleaned));
+    const parsed = JSON.parse(cleaned);
+    return NextResponse.json(parsed);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("API ERROR:", err);
+    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }
 }
