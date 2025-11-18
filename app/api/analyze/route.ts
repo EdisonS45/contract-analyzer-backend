@@ -27,7 +27,7 @@ ${text}
 `;
 
     const completion = await client.chat.completions.create({
-      model: "gpt-4.1",
+model: "gpt-4-turbo",
       messages: [{ role: "user", content: prompt }]
     });
 
