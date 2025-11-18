@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-//add
+//adds
 export async function POST(req: NextRequest) {
   try {
     const auth = req.headers.get("X-ADDON-SECRET");
