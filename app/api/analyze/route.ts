@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Schema, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, Schema, SchemaType } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -19,7 +18,7 @@ export const schema: Schema = {
       end_snippet: { type: SchemaType.STRING },
       risk_reason: { type: SchemaType.STRING },
       suggested_fix: { type: SchemaType.STRING },
-      clause_text: { type: SchemaType.STRING }
+      clause_text: { type: SchemaType.STRING },
     },
     required: [
       "clause_label",
@@ -28,6 +27,7 @@ export const schema: Schema = {
       "end_snippet",
       "risk_reason",
       "suggested_fix",
+      "clause_text",
     ],
   },
 };
@@ -39,24 +39,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { mode, text } = body as { mode: string; text: string };
+    const body = await req.json() as any;
+    const { mode, text, role, risk } = body;
+
+    // ========== REWRITE MODE ==========
     if (mode === "rewrite") {
-      const { clause_text, role } = body; // ← use existing parsed body here
+      const { clause_text } = body;
 
       const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
       });
 
       const prompt = `
-You are Senior Commercial Counsel representing the **${
-        role || "Service Provider"
-      }**.
+You are Senior Commercial Counsel representing the **${role || "Service Provider"}**.
+Risk tolerance: ${risk || "Balanced"}.
+
 Your job is to propose a "negotiated compromise" rewrite that:
-- Preserves most of the original clause wording
-- Removes unfair or one-sided terms against the ${role}
-- Looks reasonable enough for the counterparty to accept
-- Makes only the minimum necessary wording changes
+- Preserves most of the original clause wording,
+- Softens one-sided or high-risk terms against the ${role || "Service Provider"},
+- Looks reasonable enough for the counterparty to accept,
+- Makes only the minimum necessary wording changes.
 
 INPUT CLAUSE:
 "${clause_text}"
@@ -78,6 +80,7 @@ Return JSON only:
       return NextResponse.json(JSON.parse(cleaned));
     }
 
+    // ========== RED FLAG MODE ==========
     if (mode !== "red_flags") {
       return NextResponse.json({ error: "Unsupported mode" }, { status: 400 });
     }
@@ -90,10 +93,20 @@ Return JSON only:
       },
     });
 
-    const prompt = `
-You are an elite Senior Commercial Counsel whose job is to protect the **Consultant (Service Provider)** in commercial contracts.
+    const riskPhrase =
+      risk === "Conservative"
+        ? "Be strict and flag anything materially unfavorable."
+        : risk === "Aggressive"
+        ? "Only flag the most extreme, clearly non-market risks."
+        : "Use balanced, market-standard judgment.";
 
-Analyze the full contract text below. Identify up to **5 clauses** that represent the **highest risk exposure** for the CONSULTANT.
+    const prompt = `
+You are an elite Senior Commercial Counsel whose job is to protect the **${role || "Consultant (Service Provider)"}** in commercial contracts.
+
+Risk tolerance: ${risk || "Balanced"}.
+${riskPhrase}
+
+Analyze the full contract text below. Identify up to **5 clauses** that represent the **highest risk exposure** for the ${role || "Consultant"}.
 
 Focus on:
 • One-way indemnity
@@ -102,7 +115,7 @@ Focus on:
 • Auto-renewal without notice
 • IP ownership transfer of background IP
 • Overbroad confidentiality
-• Data ownership restrictions
+• Data ownership or reuse restrictions
 
 Return ONLY JSON in this format:
 [
@@ -112,8 +125,8 @@ Return ONLY JSON in this format:
     "start_snippet": "first 8–12 words of the risky clause as they appear",
     "end_snippet": "last 8–12 words of the same clause as they appear",
     "clause_text": "full exact text of the clause, verbatim as it appears in the document",
-    "risk_reason": "professional explanation of why this harms the Consultant",
-    "suggested_fix": "professional, realistic negotiation language that protects the Consultant"
+    "risk_reason": "professional explanation of why this harms the ${role || "Consultant"}",
+    "suggested_fix": "professional, realistic negotiation language that protects the ${role || "Consultant"}"
   }
 ]
 
